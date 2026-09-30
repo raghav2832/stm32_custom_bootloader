@@ -1,6 +1,6 @@
-# STM32F411 Custom Bootloader
+# STM32F446 Custom Bootloader
 
-A bare-metal **multi-application bootloader for STM32F411RETx** featuring fixed Flash partitioning, application selection, manual vector-table-based handoff, UART command control, and a **shared bootloader API table** exposed to applications through a custom linker section.
+A bare-metal **multi-application bootloader for STM32F446RETx** featuring fixed Flash partitioning, application selection, manual vector-table-based handoff, UART command control, and a **shared bootloader API table** exposed to applications through a custom linker section.
 
 This project was built to understand what actually happens between **reset → bootloader → application → interrupt handling**, rather than treating the boot process as a black box.
 
@@ -8,7 +8,7 @@ This project was built to understand what actually happens between **reset → b
 
 ## Project Overview
 
-The system uses the STM32F411's internal Flash to host:
+The system uses the STM32F446's internal Flash to host:
 
 - A **bootloader**
 - A **default application**
@@ -83,7 +83,7 @@ It focuses on several core embedded concepts:
 # System Architecture
 
 ```text
-                   STM32F411RETx
+                   STM32F446RETx
               ┌───────────────────────┐
               │       Flash           │
               │                       │
