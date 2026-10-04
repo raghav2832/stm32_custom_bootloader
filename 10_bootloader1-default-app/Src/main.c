@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <timebase_min.h>
 #include <uart_min.h>
+#include "app_header.h"
 /*Modules:
  * FPU
  * UART
@@ -11,8 +12,17 @@
  * ADC
  * */
 
-#define VECT_TAB_BASE_ADDRESS		FLASH_BASE
-#define VECT_TAB_OFFSET				0x4000
+#define VECT_TAB_BASE_ADDRESS   FLASH_BASE
+#define VECT_TAB_OFFSET         0x4200
+
+const app_header_t app_header __attribute__((section(".app_header"))) =
+{
+    .magic = APP_HEADER_MAGIC,
+    .image_size = 0,
+    .crc32 = 0,
+    .version = 1,
+    .reserved = {0}
+};
 
 #define  GPIOAEN		(1U<<0)
 #define  PIN5			(1U<<5)

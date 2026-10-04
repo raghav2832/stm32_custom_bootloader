@@ -43,6 +43,12 @@ MEMORY
 /* Sections */
 SECTIONS
 {
+  .app_header :
+  {
+    . = ALIGN(4);
+    KEEP(*(.app_header))
+    . = ALIGN(0x200);
+  } >FLASH
   /* The startup code into "FLASH" Rom type memory */
   .isr_vector :
   {

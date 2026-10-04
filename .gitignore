@@ -12,3 +12,4 @@ Release/
 *.srec
 .metadata/
 .settings/
+version.txt

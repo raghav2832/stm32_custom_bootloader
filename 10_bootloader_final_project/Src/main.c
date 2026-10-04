@@ -4,6 +4,10 @@
 #include "uart.h"
 #include "timebase.h"
 #include "bsp.h"
+#include "app_header.h"
+#include "crc32.h"
+#include "update_protocol.h"
+#include "common_apis.h"
 
 /*Modules:
  * FPU
@@ -19,7 +23,8 @@ typedef void(*func_ptr)(void);
 typedef enum
 {
 	APP1 = 1,
-	FACTORY_APP
+	FACTORY_APP,
+	UPDATE_MODE
 }SYS_APPS;
 
 static void uart_callback(void);
@@ -44,6 +49,8 @@ static void jump_to_app(uint32_t);
 #define APP1_ADDRESS                SECTOR2_BASE_ADDRESS
 #define FACTORY_APP_ADDRESS         SECTOR3_BASE_ADDRESS
 
+#define APP_SLOT_SPACING   0x4000UL
+
 bool btn_state;
 volatile char    g_ch_key;
 volatile uint8_t g_ui_key;
@@ -51,54 +58,46 @@ volatile uint8_t g_ui_key;
 
 static void jump_to_app(uint32_t addr_value)
 {
-	uint32_t app_start_address;
-	func_ptr jump_to_app;
+    const app_header_t *hdr = (const app_header_t *)addr_value;
+    uint32_t vt_addr;
+    uint32_t app_msp;
+    uint32_t app_start_address;
+    uint32_t computed_crc;
+    func_ptr jump_to_app;
 
+    if (hdr->magic != APP_HEADER_MAGIC)
+    {
+        printf("No valid application found at location %08lX...\n\r", addr_value);
+        return;
+    }
 
-	/*Version 1*/
-    #ifdef MEM_CHECK_V1
-	if(((*(uint32_t *)addr_value) & MSP_VERIFY_MASK ) ==  0x20020000)
-    #endif
+    if ((hdr->image_size <= APP_HEADER_SIZE) || (hdr->image_size > APP_SLOT_SPACING))
+    {
+        printf("Application at %08lX has invalid size (%lu)...\n\r", addr_value, hdr->image_size);
+        return;
+    }
 
-    #ifdef MEM_CHECK_V2
-	/*Version 2*/
-	if((*(uint32_t *)addr_value) != EMPTY_MEM)
-    #endif
+    computed_crc = crc32_compute_app_image(addr_value, hdr->image_size);
 
-	{
-		printf("Starting application.....\n\r");
-		app_start_address =  *(uint32_t *)(addr_value + 4);
+    if (computed_crc != hdr->crc32)
+    {
+        printf("Application at %08lX failed CRC check (expected %08lX, got %08lX)...\n\r",
+               addr_value, hdr->crc32, computed_crc);
+        return;
+    }
 
-		jump_to_app = (func_ptr) app_start_address;
+    vt_addr = addr_value + APP_HEADER_SIZE;
+    app_msp = *(uint32_t *)vt_addr;
+    app_start_address = *(uint32_t *)(vt_addr + 4);
 
-		/*Initialialize main stack pointer*/
-		__set_MSP(*(uint32_t *)addr_value);
+    printf("Application validated (v%lu), starting.....\n\r", hdr->version);
 
-		/*jump*/
-		jump_to_app();
+    jump_to_app = (func_ptr)app_start_address;
 
-	}
-	else
-	{
-		printf("No application found at location %08lX...\n\r", addr_value);
-	}
+    __set_MSP(app_msp);
 
-
+    jump_to_app();
 }
-
-struct btl_common_apis
-{
-	void(*led_init)(void);
-	void(*led_toggle)(uint32_t dly);
-	void(*led_on)(void);
-	void(*led_off)(void);
-	void(*debug_uart_init)(void);
-	void(*button_init)(void);
-	bool(*get_btn_state)(void);
-	void(*fpu_enable)(void);
-	void(*timebase_init)(void);
-
-};
 
 struct btl_common_apis common_apis  __attribute__((section(".COMMON_APIS")))= {
 		led_init,
@@ -153,6 +152,7 @@ int main()
 		printf("Available Commands:\n\r");
 		printf("1       ==> Run App 1\n\r");
 		printf("F       ==> Factory App 2\n\r");
+		printf("U       ==> Firmware Update Mode\n\r");
 		printf("Any key ==> Run Default App\n\r");
 
 		while(1)
@@ -186,6 +186,11 @@ static void process_btldr_cmds(SYS_APPS curr_app)
 		printf("FACTORY APP selected...\n\r");
 		jump_to_app(FACTORY_APP_ADDRESS);
 		break;
+	case UPDATE_MODE :
+		printf("UPDATE MODE selected...\n\r");
+		run_update_session();
+		g_ui_key = 0;
+		break;
 	default :
 		break;
 	}
@@ -203,6 +208,10 @@ static void uart_callback(void){
 	{
 		g_ui_key = 2;
 	}
+	else if((g_ch_key == 'U') || (g_ch_key == 'u'))
+	{
+		g_ui_key = 3;
+	}
 	else
 	{
 
@@ -216,12 +225,3 @@ void USART2_IRQHandler(void){
 		uart_callback();
 	}
 }
-
-
-
-
-
-
-
-
-
